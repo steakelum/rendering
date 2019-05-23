@@ -2,19 +2,19 @@
 # https://github.com/steakelum/vapory
 
 from vapory import *
-from PIL import Image
 from threading import Thread
+
 import numpy as np
-import os, time, ffmpy, math
+import io, os, time, ffmpy, math, sys, time
 
 
 rendering = "serial"				# leave at serial, parallel not properly implemented
 
 class rendersettings:				# these settings affect the "image" of the render
 	path = "render/"
-	rendersize = 1000				#1000x1000px
+	rendersize = 500				#1000x1000px
 	antialiasing = 1
-	quality = 6
+	quality = 11
 	tweening = False				# to be implemented, placeholder for now
 
 class fnsettings:
@@ -112,10 +112,14 @@ def render_scene(keyframes, frame_count, fc_max):
 	filename = "frame_" + str(frame_count).zfill(int(digits)) 
 	path = rendersettings.path + str(frame_count).zfill(int(digits)) + "/"
 
-	print("\trendering frame " + str(frame_count))
+	tdif = time.time() - fnsettings.start_time
+	exptime = (tdif / (frame_count - 1))*(1 + fc_max - frame_count) if frame_count > 1 else fc_max
+
+	sys.stdout.write("\r\trendering frame {} of {}, ETA {} sec{}".format(frame_count, fc_max, round(exptime,2), " "*10))
+	sys.stdout.flush()
 
 	os.mkdir(path)
-	print(path + filename)
+	#print(path + filename)
 	try:
 		scene.render(path + filename, width=rendersettings.rendersize, height=rendersettings.rendersize, quality=rendersettings.quality,antialiasing=rendersettings.antialiasing)
 	except:
@@ -124,10 +128,13 @@ def render_scene(keyframes, frame_count, fc_max):
 	os.rename(path + filename + ".png", rendersettings.path + filename + ".png")
 	os.rmdir(path)
 
-def ffmconvert(fps, path):
+
+def ffmconvert(fps, path, vf, fc):
+	digits = len(str(fc))
 	ffmpy.FFmpeg(
-		inputs={path + 'frame_%03d.png':['-r', str(fps)]},
-		outputs={'animation.gif':None}
+		inputs={path + 'frame_%0{}d.png'.format(digits):['-r', str(fps),
+				'-hide_banner', '-loglevel', 'panic']},
+		outputs={'animation.{}'.format(vf):None}
 		).run()
 	return
 
@@ -137,10 +144,16 @@ def ffmconvert(fps, path):
 			# [ [[3,3,3], [2,2,2], [1,1,1], [0,0,0]],
 			#	[[2,2,2,], [1,1,1], ......
 			#	[[N,N,N],......	]	]
-def render(keyframes, string, color = [0,1,1], fps=30):
+def render(keyframes, string, vformat, color = [0,1,1], fps=30):
 
 	maxthreads = os.cpu_count()
 	threads = []
+
+	if os.path.exists("animation.{}".format(vformat)):
+		if(input("animation file already exists in current directory. overwrite?")[0] == "y"):
+			os.remove("animation.{}".format(vformat))
+		else:
+			return
 
 	maxframes = len(max(keyframes, key = len))
 	if(input("Are you sure you want to render " + str(maxframes) + " frames?")[0] == "y"):
@@ -151,6 +164,8 @@ def render(keyframes, string, color = [0,1,1], fps=30):
 		render_setup(keyframes)
 
 		print("starting rendering")
+
+		fnsettings.start_time = time.time()
 		currentframe = 0
 		stopflag = False
 		while True:
@@ -172,7 +187,7 @@ def render(keyframes, string, color = [0,1,1], fps=30):
 			for job in threads:
 				job.start()
 				job.join()
-				print("finished frame")
+				# print("finished frame")
 
 		elif rendering == "parallel":
 			while len(threads) > 0:
@@ -191,8 +206,16 @@ def render(keyframes, string, color = [0,1,1], fps=30):
 				print("finished " + str(maxthreads) + " frames")
 				threads = threads[maxthreads:]
 
-		print("finished rendering")
+		print("\nfinished rendering")
 
-		ffmconvert(fps, rendersettings.path)
-		print("animation created")
-		#render_scene(True, 0, 1000)
+		ffmconvert(fps, rendersettings.path, vformat, maxframes)
+		print("animation created, cleaning up")
+		
+		for file in os.listdir(rendersettings.path):
+			os.remove(rendersettings.path + file)
+		os.rmdir(rendersettings.path)
+
+		if os.path.exists("__temp__.pov"):
+			os.remove("__temp__.pov")
+
+		print("done.")
