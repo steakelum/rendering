@@ -4,11 +4,11 @@ import render
 
 y = lambda x,z: cos(x) + sin(z)		# define "functional" cost function
 y_str = '-y + cos(x) + sin(z)'		# define graphable function in form of f(x,y,z) = 0
-color = [.5,.5,.5]					# color of the rendered surface
+color = [.75,.75,.75]				# color of the rendered surface in RGB format
 
-fps = 60					# output video fps
-seconds = 4					# output video length
-videoformat = "webm"		# format: avi, webm, gif, mp4, ... etc
+fps = 25					# output video fps
+seconds = 1					# output video length
+videoformat = "gif"		# format: avi, webm, gif, mp4, ... etc
 
 
 
@@ -40,5 +40,5 @@ for pt in range(10):		# generate 10 points
 
 							# render the video with all points, on the given surface with a color
 							# at a given fps, in the given format:
-render.render(points, y_str, color, fps, videoformat)
+render.render(points, y_str, videoformat, color, fps)
 
